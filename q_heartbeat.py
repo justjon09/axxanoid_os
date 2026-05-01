@@ -1,6 +1,8 @@
 import os
+import re
 import sys
 import asyncio
+import subprocess
 from sqlalchemy.orm import Session
 from memory.database import SessionLocal
 from memory.models import SystemConfig, CurrentChat
@@ -20,6 +22,40 @@ def load_directive(filename: str) -> str:
         print(f">>> [HEARTBEAT WARNING] Missing directive file: {filename}. Skipping.")
         return f"[System Note: {filename} is currently missing or inaccessible.]"
 
+def parse_heartbeat_config(md_content: str):
+    """Parse the custom arrays from HEARTBEAT.md"""
+    prompt_list = []
+    audit_list = []
+
+    # Parse Heartbeat Prompt List Items
+    prompt_match = re.search(r"Heartbeat Prompt List Items:\s*\[(.*?)\]", md_content, re.DOTALL)
+    if prompt_match:
+        lines = prompt_match.group(1).strip().split("\n")
+        for line in lines:
+            clean_line = line.strip().strip('",')
+            if clean_line:
+                prompt_list.append(clean_line)
+
+    # Parse Heartbeat Audit List Items
+    audit_match = re.search(r"Run audits:\s*\[(.*?)\]", md_content, re.DOTALL)
+    if audit_match:
+        lines = audit_match.group(1).strip().split("\n")
+        for line in lines:
+            clean_line = line.strip()
+            # Ignore commented out audits like # MEMORY_AUDIT
+            if clean_line.startswith('#'):
+                continue
+            # Extract {script: ..., name: ..., description: ...}
+            match = re.search(r'\{script:\s*(.*?), \s*name:\s*(.*?), \s*description:\s*"(.*?)"\}', clean_line)
+            if match:
+                audit_list.append({
+                    "script": match.group(1).strip(),
+                    "name": match.group(2).strip(),
+                    "description": match.group(3).strip()
+                })
+
+    return prompt_list, audit_list
+
 def run_heartbeat():
     # Instantiate DB session
     db: Session = SessionLocal()
@@ -38,14 +74,45 @@ def run_heartbeat():
         
         print(">>> [HEARTBEAT] Wake sequence initiated. Ingesting core directives into RAM...")
         
-        # 3. RAM Loading (Identity & Directives)
+        # 3.Get and parse config md files for RAM Loading (Identity & Directives), Prompt injection, Audit list, ect.
         soul_md = load_directive("SOUL.md")
         identity_md = load_directive("IDENTITY.md")
         human_md = load_directive("HUMAN.md")
+        # Load the heartbeat config
+        heartbeat_md = load_directive("HEARTBEAT.md")
+        dynamic_prompts, audits_to_run = parse_heartbeat_config(heartbeat_md)
 
         # 4. System Audit (verify self)
-        # TODO: Run audits based on config HEARTBEAT.md - Run audits:
+        print(">>> [HEARTBEAT] Executing dynamic audits from HEARTBEAT.md...")
+        audit_report = "=== SYSTEM AUDIT REPORT ===\n"
 
+        for audit in audits_to_run:
+            script_name = audit['script']
+            audit_name = audit['name']
+            audit_description = audit['description']
+            script_path = os.path.join(CONFIG_DIR, "audit", script_name)
+
+            if os.path.exists(script_path):
+                print(f"\n [HEARTBEAT][AUDIT: {audit_name}] {audit_description} Runninig....")
+                try:
+                    # Run the script as a subprocess in the current venv
+                    result = subprocess.run(
+                        [sys.executable, script_path],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=10
+                    )
+                    # Assume script prints its alerts. If stdout is empty, it's nominal.
+                    output = result.stdout.strip() if result.stdout.strip() else "NOMINAL"
+                    audit_report += f"[{audit_name}]: {output}\n"
+
+                    if result.stderr:
+                        audit_report += f"[{audit_name} STDERR]: {result.stderr.strip()}\n"
+                except Exception as e:
+                    audit_report += f"[{audit_name} FAILED]: {str(e)}\n"
+            else:
+                 audit_report += f"[{audit_name} WARNING]: Script not found at {script_path}\n"
 
         # 5. Chat Audit (Short-Term Memory Pull)
         # Grab the last 20 messages to see what happened since the last heartbeat
@@ -61,7 +128,7 @@ def run_heartbeat():
 
 
         # 6. Proactive Inference
-        print(">>> [HEARTBEAT] Compiling reality and consulting Q...")
+        print(">>> [HEARTBEAT] Compiling reality and consulting...")
 
         # Compile the baseline
         system_context = f"""
@@ -71,19 +138,23 @@ def run_heartbeat():
         === CORE DIRECTIVE: IDENTITY ===
         {identity_md}
         
-        === THE HUMAN (MON CAPITAINE) ===
+        === THE HUMAN ===
         {human_md}
+
+        {audit_report}
         """
+
+        # Format the parsed prompt list into a numbered string
+        prompt_list = ""
+        for idx, prompt in enumerate(dynamic_prompts, start=1):
+            prompt_list += f"{idx}. {prompt}\n"
 
         # The internal prompt injected into Q's mind every heartbeat
         heartbeat_prompt = (
             f"{chat_history}\n\n"
             "SYSTEM WAKE EVENT: This is your automated background heartbeat. "
-            "You are currently running silently in the background. Review the recent chat logs above. "
-            #TODO: use config HEARTBEAT.md - Heartbeat Prompt List Items:
-            "1. Did the human leave any tasks unfinished? "
-            "2. Based on the $1k per week income floor, is the human currently distracted by 'Wood Gathering'? "
-            "3. Do you need to execute any background memory organization? "
+            "You are currently running silently in the background. Review the recent chat logs above."
+            f"{prompt_list}\n\n"
             "If no action is needed, output exactly: <think>System nominal. No action required.</think><speak>NOMINAL</speak>. "
             "If you must proactively alert the human to an error or inefficiency, use your <speak> tags."
         )

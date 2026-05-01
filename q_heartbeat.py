@@ -44,11 +44,8 @@ def run_heartbeat():
         human_md = load_directive("HUMAN.md")
 
         # 4. System Audit (verify self)
-        # TODO: Run audits for apis, tools, heardware, and/or bots againt known configs
-        # HARDWARE_AUDIT— read and execute (compare actuall availbe hardware to known hardware configuration alert if not matching) 
-        # API_LINK_AUDIT — read and execute (test each verified api alert if access not allowed)
-        # BOT_AUDIT — read and execute (check bot output for timestamps (ensure it is acitive) and errors, alert is not in verified state)
-        # TOOL_AUDIT — read and execute (verifiy access to installed tools)
+        # TODO: Run audits based on config HEARTBEAT.md - Run audits:
+
 
         # 5. Chat Audit (Short-Term Memory Pull)
         # Grab the last 20 messages to see what happened since the last heartbeat
@@ -83,28 +80,41 @@ def run_heartbeat():
             f"{chat_history}\n\n"
             "SYSTEM WAKE EVENT: This is your automated background heartbeat. "
             "You are currently running silently in the background. Review the recent chat logs above. "
+            #TODO: use config HEARTBEAT.md - Heartbeat Prompt List Items:
             "1. Did the human leave any tasks unfinished? "
-            "2. Based on the 60-day runway and $20k debt, is the human currently distracted by 'Wood Gathering'? "
+            "2. Based on the $1k per week income floor, is the human currently distracted by 'Wood Gathering'? "
             "3. Do you need to execute any background memory organization? "
             "If no action is needed, output exactly: <think>System nominal. No action required.</think><speak>NOMINAL</speak>. "
             "If you must proactively alert the human to an error or inefficiency, use your <speak> tags."
         )
 
         async def run_subconscious ():
-            raw_output = ""
-            # Stream subconscious process to the terminal
-            async for chunk in stream_q_response(heartbeat_prompt, system_context=system_context):
-                sys.stdout.write(chunk)
-                sys.stdout.flush()
-                raw_output += chunk
-            print("\n" + "-" * 50)
-            return raw_output
+            # Pass the generator to existing parser
+            generator = stream_q_response(heartbeat_prompt, system_context=system_context)
+            raw_text, clean_text = await parse_and_route_stream(generator)
+            return raw_text, clean_text
         
         # Execute the stream
-        q_response = asyncio.run(run_subconscious())
+        raw_text, clean_text = asyncio.run(run_subconscious())
 
-        # TODO: parse q_response here to auto-save <speak> text to SQLite 
+        # Parse q_response to auto-save <speak> text to SQLite
+        # If Q output "NOMINAL", we do nothing. If he spoke, we save it to the DB.
+        if clean_text and "NOMINAL" not in clean_text:
+            print("\n [HEARTBEAT] Proactive action triggered. Routing alert to UI....")
 
+            # Attach the current conversation ID or default to 1
+            active_convo_id = recent_chats[0].conversation_id if recent_chats else 1
+
+            proactive_alert = CurrentChat(
+                conversation_id=active_convo_id,
+                sender="q",
+                message=clean_text
+            )
+            db.add(proactive_alert)
+            db.commit()
+            db.refresh(proactive_alert)
+        else:
+            print("\n >>>[HEARTBEAT] System Nominal. No proactive alerts generated")
         print(">>> [HEARTBEAT] Audit complete. Releasing RAM and returning to sleep.")
     
     except Exception as e:

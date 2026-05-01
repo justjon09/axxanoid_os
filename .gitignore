@@ -1,0 +1,31 @@
+# Python Environments & Cache
+q_env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Environment Variables
+.env
+.env.local
+
+# Databases & Sovereign Memory
+# (We ignore the actual DBs so Q's live memory stays local to your M4 Pro)
+q_state.db
+chroma_data/
+
+# Frontend (Node/Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/npm-debug.log*
+frontend/yarn-error.log*
+frontend/yarn-debug.log*
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

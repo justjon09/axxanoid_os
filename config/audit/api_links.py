@@ -53,3 +53,6 @@ def run_api_autid():
     if alerts:
         for alert in alerts:
             print(alert)
+
+if __name__ == "__main__":
+    run_api_autid()

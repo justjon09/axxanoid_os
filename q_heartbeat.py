@@ -1,8 +1,11 @@
 import os
 import sys
+import asyncio
 from sqlalchemy.orm import Session
 from memory.database import SessionLocal
 from memory.models import SystemConfig, CurrentChat
+from q_engine.ollama_client import stream_q_response
+from q_engine.stream_parser import parse_and_route_stream
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_DIR = os.path.join(BASE_DIR, "config")
@@ -33,7 +36,6 @@ def run_heartbeat():
             print(f">>> [HEARTBEAT] Q is currently {heartbeat_config.q_status}. Skipping heartbeat to protect VRAM.")
             return
         
-
         print(">>> [HEARTBEAT] Wake sequence initiated. Ingesting core directives into RAM...")
         
         # 3. RAM Loading (Identity & Directives)
@@ -52,9 +54,56 @@ def run_heartbeat():
         # Grab the last 20 messages to see what happened since the last heartbeat
         recent_chats = db.query(CurrentChat).order_by(CurrentChat.id.desc()).limit(20).all()
 
+        chat_history = "=== RECENT CHAT LOGS (Last 20 messages) ===\n"
+        if not recent_chats:
+            chat_history += "No recent conversation history found.\n"
+        else:
+            # Reverse to put them in chronological order for Dolphin
+            for chat in reversed(recent_chats):
+                chat_history += f"[{chat.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {chat.sender.upper()}: {chat.message}\n"
+
+
         # 6. Proactive Inference
-        # TODO: Compile directives + recent chats into a prompt.
-        # Send to Dolphin 3: "Review the last 30 minutes. Are there tasks to execute or memories to compact?"
+        print(">>> [HEARTBEAT] Compiling reality and consulting Q...")
+
+        # Compile the baseline
+        system_context = f"""
+        === CORE DIRECTIVE: SOUL ===
+        {soul_md}
+        
+        === CORE DIRECTIVE: IDENTITY ===
+        {identity_md}
+        
+        === THE HUMAN (MON CAPITAINE) ===
+        {human_md}
+        """
+
+        # The internal prompt injected into Q's mind every heartbeat
+        heartbeat_prompt = (
+            f"{chat_history}\n\n"
+            "SYSTEM WAKE EVENT: This is your automated background heartbeat. "
+            "You are currently running silently in the background. Review the recent chat logs above. "
+            "1. Did the human leave any tasks unfinished? "
+            "2. Based on the 60-day runway and $20k debt, is the human currently distracted by 'Wood Gathering'? "
+            "3. Do you need to execute any background memory organization? "
+            "If no action is needed, output exactly: <think>System nominal. No action required.</think><speak>NOMINAL</speak>. "
+            "If you must proactively alert the human to an error or inefficiency, use your <speak> tags."
+        )
+
+        async def run_subconscious ():
+            raw_output = ""
+            # Stream subconscious process to the terminal
+            async for chunk in stream_q_response(heartbeat_prompt, system_context=system_context):
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+                raw_output += chunk
+            print("\n" + "-" * 50)
+            return raw_output
+        
+        # Execute the stream
+        q_response = asyncio.run(run_subconscious())
+
+        # TODO: parse q_response here to auto-save <speak> text to SQLite 
 
         print(">>> [HEARTBEAT] Audit complete. Releasing RAM and returning to sleep.")
     

@@ -58,8 +58,8 @@ function App() {
 
       const data = await response.json();
 
-      // TODO -- Prove it -Assuming your FastAPI returns something like { reply: "..." } or { response: "..." }
-      const qText = data.reply || data.response || data.message || "**[SYSTEM]** Empty response received.";
+      // Grab the exact key sent by FastAPI
+      const qText = data.q_response || "**[SYSTEM]** Empty response received.";
 
       const qMsg: Message = { id: Date.now() + 1, sender: 'q' as const, text: qText };
       setMessages((prev) => [...prev, qMsg]);
@@ -145,26 +145,6 @@ function App() {
             )}
             <div ref={messagesEndRef} />
           </main>
-          {/* Input Area */}
-          <div className="p-4 bg-slate-950 border-t border-slate-800">
-            <form onSubmit={handleSend} className="max-w-5xl mx-auto flex gap-3">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={isThinking}
-                placeholder={isThinking ? "Q is thinking..." : "Enter command..."}
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-md px-4 py-3 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={isThinking || !input.trim()}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-md font-medium tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                EXECUTE
-              </button>
-            </form>
-          </div>
         </div>
         <div className="w-1/4 flex-none">
           <div className="hero">

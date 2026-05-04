@@ -1,12 +1,32 @@
+import os
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from q_engine.ollama_client import stream_q_response
 from q_engine.stream_parser import parse_and_route_stream
 from memory.database import get_db
 from memory.models import SystemConfig, CronState, ChatLogs, CurrentChat
+from memory.vector_store import get_memory_topics
 from api.schemas import ChatRequest
 
 router = APIRouter()
+
+
+# Load Markdown files into RAM once when FastAPI boots.
+def load_core_directives() -> str:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_dir = os.path.join(base_dir, "config")
+    
+    def load_md(filename):
+        filepath = os.path.join(config_dir, filename)
+        try:
+            with open(filepath, "r") as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            return f"[System Note: {filename} missing]"
+            
+    return f"=== SOUL ===\n{load_md('SOUL.md')}\n\n=== IDENTITY ===\n{load_md('IDENTITY.md')}\n\n=== THE HUMAN ===\n{load_md('HUMAN.md')}"
+
+GLOBAL_SYSTEM_CONTEXT = load_core_directives()
 
 @router.get("/system/status")
 async def get_system_status(db: Session = Depends(get_db)):
@@ -47,6 +67,12 @@ async def toggle_cron_job(job_name: str, db: Session = Depends(get_db)):
         return {"status": "success", "enabled": cron_job.enabled}
     return {"status": "error", "message": "Cron job not found"}
 
+@router.get("/memory/topics")
+async def fetch_memory_topics():
+    """Allows the UI to see what topics exist in Q's long-term vector memory."""
+    topics = get_memory_topics()
+    return {"status": "success", "topics": topics}
+
 # The schma defining what the UI will send to Python
 @router.post("/chat")
 async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
@@ -66,11 +92,10 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user_msg)
 
-
-    # 1.5 Fetch Short-Term Memory (25 messages)
+    # 1.5 Fetch Short-Term Memory (20 messages)
     recent_chats = db.query(CurrentChat).filter(
         CurrentChat.conversation_id == request.conversation_id
-    ).order_by(CurrentChat.id.desc()).limit(25).all()
+    ).order_by(CurrentChat.id.desc()).limit(20).all()
     chat_history = ""
     # Reverse to chronological order
     for chat in reversed(recent_chats):
@@ -81,7 +106,7 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     full_prompt = f"=== RECENT CHAT HISTORY ===\n{chat_history}\n\nUSER: {request.message}" if chat_history else request.message
 
     # 2. Start the AI generator 
-    raw_generator = stream_q_response(full_prompt)
+    raw_generator = stream_q_response(full_prompt, system_context=GLOBAL_SYSTEM_CONTEXT)
 
     # 3. Pass the gernerator through parser - Terminal sees all live
     raw_text, clean_text = await parse_and_route_stream(raw_generator)

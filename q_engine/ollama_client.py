@@ -4,7 +4,7 @@ from ollama import AsyncClient
 
 # The default prot for local Ollama
 OLLAMA_HOST = "http://localhost:11434"
-MODEL_NAME = "dolphin3"
+MODEL_NAME = "q_daemon"
 
 async def stream_q_response(user_promt: str, system_context: str = "") -> AsyncGenerator[str, None]:
     """
@@ -31,7 +31,11 @@ async def stream_q_response(user_promt: str, system_context: str = "") -> AsyncG
 
     try: 
         # Stream=True is critical. Allows parsing the <think> tags in real-time (Enhancement)
-        async for part in await client.chat(model=MODEL_NAME, messages=message, stream=True):
+        async for part in await client.chat(
+            model=MODEL_NAME,
+            messages=message,
+            stream=True
+        ):
             yield part['message']['content']
     except Exception as e:
         yield f"\n[SYSTEM ERROR: failed to connect to Ollama. Is the model running? Details: {str(e)}]"

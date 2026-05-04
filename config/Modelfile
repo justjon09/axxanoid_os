@@ -1,0 +1,9 @@
+# Base it on the uncensored Dolphin model
+FROM dolphin3
+
+# Force the M4 Pro to allocate a massive 32k workbench for Q
+PARAMETER num_ctx 32768
+
+# We can also lock in his temperature here. 
+# 0.7 makes him creative but highly logical.
+PARAMETER temperature 0.7

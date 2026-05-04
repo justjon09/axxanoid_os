@@ -66,8 +66,22 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user_msg)
 
-    # 2. Start the AI generator
-    raw_generator = stream_q_response(request.message)
+
+    # 1.5 Fetch Short-Term Memory (25 messages)
+    recent_chats = db.query(CurrentChat).filter(
+        CurrentChat.conversation_id == request.conversation_id
+    ).order_by(CurrentChat.id.desc()).limit(25).all()
+    chat_history = ""
+    # Reverse to chronological order
+    for chat in reversed(recent_chats):
+        if chat.id != user_msg.id: # Skip the message we just inserted
+            chat_history += f"{chat.sender.upper()}: {chat.message}\n"
+
+    # Compile the prompt with the history
+    full_prompt = f"=== RECENT CHAT HISTORY ===\n{chat_history}\n\nUSER: {request.message}" if chat_history else request.message
+
+    # 2. Start the AI generator 
+    raw_generator = stream_q_response(full_prompt)
 
     # 3. Pass the gernerator through parser - Terminal sees all live
     raw_text, clean_text = await parse_and_route_stream(raw_generator)

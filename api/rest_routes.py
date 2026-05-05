@@ -24,7 +24,7 @@ def load_core_directives() -> str:
         except FileNotFoundError:
             return f"[System Note: {filename} missing]"
             
-    return f"=== SOUL ===\n{load_md('SOUL.md')}\n\n=== IDENTITY ===\n{load_md('IDENTITY.md')}\n\n=== THE HUMAN ===\n{load_md('HUMAN.md')}"
+    return f"=== SOUL ===\n{load_md('SOUL.md')}\n\n=== IDENTITY ===\n{load_md('IDENTITY.md')}\n\n=== THE HUMAN ===\n{load_md('HUMAN.md')}\n\n=== TOOLS ===\n{load_md('TOOLS.md')}"
 
 GLOBAL_SYSTEM_CONTEXT = load_core_directives()
 
@@ -109,13 +109,13 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     raw_generator = stream_q_response(full_prompt, system_context=GLOBAL_SYSTEM_CONTEXT)
 
     # 3. Pass the gernerator through parser - Terminal sees all live
-    raw_text, clean_text = await parse_and_route_stream(raw_generator)
+    raw_text, speach_text = await parse_and_route_stream(raw_generator)
 
     # 4. Save cleaned response to database
     q_msg = CurrentChat(
         conversation_id=request.conversation_id,
         sender="q",
-        message=clean_text
+        message=speach_text
     )
     db.add(q_msg)
     db.commit()
@@ -123,5 +123,5 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
 
     return {
         "status": "success",
-        "q_response": clean_text
+        "q_response": speach_text
     }

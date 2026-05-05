@@ -5,7 +5,8 @@ from typing import Tuple
 async def parse_and_route_stream(async_generator) -> Tuple[str, str]:
     """
     1. Streams the raw matrix directly to the Dev Terminal.
-    2. Extracts ONLY the text inside <speak> tags for the UI/Database.
+    2. Extracts text inside <speak> tags for the UI.
+    3. Extracts text inside <tool> tags for backend execution.
     """
     raw_text = ""
 
@@ -24,6 +25,7 @@ async def parse_and_route_stream(async_generator) -> Tuple[str, str]:
     # This specifically hunts for <tool> content </tool> across multiple lines
     tool_match = re.search(r'<tool>(.*?)</tool>', raw_text, re.DOTALL | re.IGNORECASE)
 
+    tool_request = ""
     if tool_match:
         # Extract the Tool Request for processing
         # Tags Found. Strip leading/trailing whitespaces
@@ -36,7 +38,9 @@ async def parse_and_route_stream(async_generator) -> Tuple[str, str]:
         speach_text = speak_match.group(1).strip()
     else:
         # Fallback in case Dolphin respone is not in the system prompted format.
-        # Pull <think> and retrun remaing content
+        # Pull <think> and <tool>, retrun remaing content
         fallback_text = re.sub(r"<think>(.*?)</think>", "", raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
+        fallback_text = re.sub(r"<tool>(.*?)</tool>", "", fallback_text, flags=re.DOTALL | re.IGNORECASE).strip()
         speach_text = fallback_text if fallback_text else "*(System Error: No Visible Response Found. See Terminal)*"
-    return raw_text, speach_text
+    
+    return raw_text, speach_text, tool_request

@@ -20,6 +20,8 @@ async def stream_q_response(user_promt: str, system_context: str = "") -> AsyncG
         "2. You must ALWAYS wrap your tool usage istrictly inside <tool> and </tool> tags. "
         "3. You must ALWAYS wrap your final, external response to the user strictly inside <speak> and </speak> tags. "
         "Do not output any text outside of these three sets of tags."
+        "Do not nest your output tags, complete one set of tags prior to starting another."
+        "If you need to use a tool, close your <think> tag, output the <tool> tag, and STOP immediately. The system will return the results."
     )
 
     # Combine the base identity with any dynamic context (like RAG data or DB state)

@@ -49,15 +49,17 @@ def execute_requested_tool(tool_request: str) -> str:
     availble_tools_match = re.search(r"Available Tools:\s*\[(.*?)\]", tools_md, re.DOTALL)
 
     if availble_tools_match:
-        lines = availble_tools_match.group(1).strip().split("\n")
-        for line in lines:
-            clean_line = line.strip()
-            # Extract {name: ..., script: ...}
-            match = re.search(r'\{name:\s*(.*?), \s*script:\s*(.*?)"\}', clean_line)
-            if match:
+        tool_box = availble_tools_match.group(1)
+        # Extract each individual { ... } block first
+        tool_blocks = re.findall(r"\{(.*?)\}", tool_box, re.DOTALL)
+        for block in tool_blocks:
+            # Extract the name and script strictly from within this block
+            name_match = re.search(r"name:\s*(.*?),", block)
+            script_match = re.search(r"script:\s*(.*?),", block)
+            if name_match and script_match:
                 tools_list.append({
-                    "name": match.group(1).strip(),
-                    "script": match.group(2).strip(),
+                    "name": name_match.group(1).strip(),
+                    "script": script_match.group(1).strip(),
                 })
 
     if tool_request_name in [tool["name"] for tool in tools_list]:

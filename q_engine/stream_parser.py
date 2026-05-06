@@ -2,7 +2,7 @@ import sys
 import re
 from typing import Tuple
 
-async def parse_and_route_stream(async_generator) -> Tuple[str, str]:
+async def parse_and_route_stream(async_generator) -> Tuple[str, str, str]:
     """
     1. Streams the raw matrix directly to the Dev Terminal.
     2. Extracts text inside <speak> tags for the UI.

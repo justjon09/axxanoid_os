@@ -41,3 +41,19 @@ def execute_sqlite_query(raw_sql_query: str) -> str:
         return f"[TOOL ERROR: SQL execution failed. Syntax or table error: {str(e)}]"
     finally:
         db.close()
+
+# --- SUBPROCESS ENTRY POINT ---
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    query_string = None
+    
+    for arg in args:
+        if arg.startswith("Query:"):
+            query_string = arg.replace("Query:", "").strip()
+            
+    if not query_string:
+        print("[TOOL ERROR: Missing Query parameter]")
+        sys.exit(1)
+        
+    print(execute_sqlite_query(query_string))
+    sys.exit(0)

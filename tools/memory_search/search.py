@@ -56,3 +56,33 @@ def execute_sql_memory_search(raw_sql_query: str) -> str:
         return f"[TOOL ERROR: SQL execution failed. Synrax or table erorr: {str(e)}]"
     finally:
         db.close()
+
+# --- SUBPROCESS ENTRY POINT ---
+if __name__ == "__main__":
+    # sys.argv[0] is the script name. Args start at index 1.
+    args = sys.argv[1:]
+    
+    search_type = None
+    query_string = None
+    filter_string = None
+    
+    # Parse the bracket arguments passed by the router
+    for arg in args:
+        if arg.startswith("Type:"):
+            search_type = arg.replace("Type:", "").strip()
+        elif arg.startswith("Query:"):
+            query_string = arg.replace("Query:", "").strip()
+        elif arg.startswith("Filter:"):
+            filter_string = arg.replace("Filter:", "").strip()
+            
+    if not search_type or not query_string:
+        print("[TOOL ERROR: Missing Type or Query parameter]")
+        sys.exit(1)
+        
+    if search_type.upper() == "VECTOR":
+        where_filter = {"topic": filter_string} if filter_string else None
+        print(execute_vector_memory_search(query_string, where_filter))
+    elif search_type.upper() == "SQL":
+        print(execute_sql_memory_search(query_string))
+    else:
+        print(f"[TOOL ERROR: Unknown Search Type: {search_type}]")

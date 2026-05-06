@@ -5,21 +5,28 @@ Available Tools: [
     {
         name: SEARCH_MEMORY, 
         script: memory_search/search.py, 
-        description: "Agent only has immediate access to the last 20 messages. Memory Search allows agent to query local memory."
+        description: "Agent only has immediate access to the last 20 messages. Memory Search allows agent to query local memory.",
         usage:
             "- To search past long-term decisions or concepts, use vector memory: [SEARCH_MEMORY][Type: Vector][Query: <query_string>][Filter: <filter_string>]"
-            "- To inspect the internal tables including system_configs, cron_states, current_chats, and agent mainted data, use a RAW SQL query: [SEARCH_MEMORY][Type: SQL][Query: <query_string>]"    
+            "- To inspect the internal tables including system_configs, cron_states, current_chats, and agent mainted data, use a RAW SQL query: [SEARCH_MEMORY][Type: SQL][Query: <query_string>]",
+        tests: [
+            "[SEARCH_MEMORY][Type: Vector][Query: testing]",
+            "[SEARCH_MEMORY][Type: SQL][Query: SELECT * FROM current_chat LIMIT 1;]"
+        ]:End Tests
     },
     {
-        name: SQLITE
-        script: sqlite_manager/sqlite_manager.py
-        description: "Allows agent to directly execute SQLite queries."
+        name: SQLITE,
+        script: sqlite_manager/sqlite_manager.py,
+        description: "Allows agent to directly execute SQLite queries.",
         usage:
             "- To execute queries: [SQLITE][Query: <query_string]"
+        tests: [
+            "[SQLITE][Query: SELECT * FROM system_config LIMIT 1;]"
+        ]:End Tests
     }
+]:End Availble Tools
     # API manager
     # browser
     # vs code
     # read / write / change permissions
     # image viewer
-]

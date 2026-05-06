@@ -46,7 +46,7 @@ def execute_requested_tool(tool_request: str) -> str:
     tools_md = load_md("TOOLS.md")
     
     # Parse Availble Tools List Items
-    availble_tools_match = re.search(r"Available Tools:\s*\[(.*?)\]", tools_md, re.DOTALL)
+    availble_tools_match = re.search(r"Available Tools:\s*\[(.*?)\]:End Availble Tools", tools_md, re.DOTALL)
 
     if availble_tools_match:
         tool_box = availble_tools_match.group(1)

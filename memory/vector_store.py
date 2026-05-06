@@ -1,5 +1,6 @@
 import os
 os.environ["ANONYMIZED_TELEMETRY"] = "False" # Nuke telemetry before Chroma even loads
+os.environ["CHROMA_TELEMETRY_IMPL"] = "none" # This completely disables the buggy Posthog capture
 import chromadb
 from chromadb.config import Settings
 

@@ -162,15 +162,15 @@ def run_heartbeat():
         async def run_subconscious ():
             # Pass the generator to existing parser
             generator = stream_q_response(heartbeat_prompt, system_context=system_context)
-            raw_text, clean_text = await parse_and_route_stream(generator)
-            return raw_text, clean_text
-        
+            raw_text, speach_text, tool_request = await parse_and_route_stream(generator)
+            return raw_text, speach_text, tool_request
+             
         # Execute the stream
-        raw_text, clean_text = asyncio.run(run_subconscious())
+        raw_text, speach_text, tool_request = asyncio.run(run_subconscious())
 
         # Parse q_response to auto-save <speak> text to SQLite
         # If Q output "NOMINAL", we do nothing. If he spoke, we save it to the DB.
-        if clean_text and "NOMINAL" not in clean_text:
+        if speach_text and "NOMINAL" not in speach_text:
             print("\n [HEARTBEAT] Proactive action triggered. Routing alert to UI....")
 
             # Attach the current conversation ID or default to 1
@@ -179,7 +179,7 @@ def run_heartbeat():
             proactive_alert = CurrentChat(
                 conversation_id=active_convo_id,
                 sender="q",
-                message=clean_text
+                message=speach_text
             )
             db.add(proactive_alert)
             db.commit()

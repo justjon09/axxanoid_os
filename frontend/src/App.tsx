@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, use } from 'react'
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -20,9 +20,28 @@ function App() {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // State for Vector Memory Topics
+  const [memoryTopics, setMemoryTopics] = useState<string[]>([]);
 
-
-  const [count, setCount] = useState(0)
+  // Fetch Vector Memory Topics on load
+  useEffect(() => {
+    const fetchTopics = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:8000/api/memory/topics');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'success') {
+            setMemoryTopics(data.topics || []);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch memory topics:", error);
+      }
+    };
+    
+    fetchTopics();
+  }, []);
 
   // Auto-scroll to the bottom when new messages arrive
   useEffect(() => {
@@ -77,7 +96,6 @@ function App() {
     }
   };
 
-
   return (
     <>
       <header className="bg-slate-950 p-4 border-b border-slate-800 shadow-sm flex justify-between items-center z-10">
@@ -91,12 +109,24 @@ function App() {
         </div>
       </header>
       <div className="flex h-[65vh] w-full bg-slate-900 text-slate-50 font-sans">
-        <div className="w-1/4 flex-none">
-          <div className="hero">
-            <img src={heroImg} className="base" width="170" height="179" alt="" />
-            <img src={reactLogo} className="framework" alt="React logo" />
-            <img src={viteLogo} className="vite" alt="Vite logo" />
-          </div>
+        {/* Vector Memory Topics (left column - top)*/}
+        <div className="w-1/4 flex-none bg-slate-950 border-r border-slate-800 overflow-y-auto">
+          <h2 className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
+            Vector Memory Vault
+          </h2>
+          {memoryTopics.length === 0 ? (
+            <p className=" text-sm text-slate-600 italic">No topics found.</p>
+          ) : (
+            <ul className="space-y-2">
+              {memoryTopics.map((topic, idx) => (
+                <li
+                key={idx}
+                className="text-sm text-emerald-400/800 bg-slate-900 px-3 py-2 rounded border border-slate-800 hover:border-emerald-500/50 transition-colors cursor-default">
+                  {topic}
+              </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="w-2/4 h-full flex-none">
           {/* Chat Log */}
@@ -155,12 +185,12 @@ function App() {
         </div>
       </div>
       <div className="flex h-[15vh] w-full bg-slate-900 text-slate-50 font-sans">
-        <div className="w-1/4 flex-none">
-          <div className="hero">
+        <div className="w-1/4 flex-none border-r border-slate-800 bg-slate-950">
+          {/* <div className="hero">
             <img src={heroImg} className="base" width="170" height="179" alt="" />
             <img src={reactLogo} className="framework" alt="React logo" />
             <img src={viteLogo} className="vite" alt="Vite logo" />
-          </div>
+          </div> */}
         </div>
         <div className="w-2/4 h-full flex-none">
           {/* Input Area */}

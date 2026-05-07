@@ -2,7 +2,7 @@ import sys
 import re
 from typing import Tuple
 
-async def parse_and_route_stream(async_generator) -> Tuple[str, str, str]:
+async def parse_and_route_stream(async_generator) -> Tuple[str, str, list[str]]:
     """
     1. Streams the raw matrix directly to the Dev Terminal.
     2. Extracts text inside <speak> tags for the UI.
@@ -20,27 +20,32 @@ async def parse_and_route_stream(async_generator) -> Tuple[str, str, str]:
 
     # 2. Parse inbound stream text using Regex
     # This specifically hunts for <speak> content </speak> across multiple lines
-    speak_match = re.search(r'<speak>(.*?)</speak>', raw_text, re.DOTALL | re.IGNORECASE)
+    speak_match = re.findall(r'<speak>(.*?)</speak>', raw_text, re.DOTALL | re.IGNORECASE)
 
     # This specifically hunts for <tool> content </tool> across multiple lines
-    tool_match = re.search(r'<tool>(.*?)</tool>', raw_text, re.DOTALL | re.IGNORECASE)
+    tool_match = re.findall(r'<tool>(.*?)</tool>', raw_text, re.DOTALL | re.IGNORECASE)
+    
+    untagged_text = re.sub(r"<think>(.*?)</think>", "", raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
+    untagged_text = re.sub(r"<tool>(.*?)</tool>", "", untagged_text, flags=re.DOTALL | re.IGNORECASE).strip()
+    untagged_text = re.sub(r"<speak>(.*?)</speak>", "", untagged_text, flags=re.DOTALL | re.IGNORECASE).strip()
+    
+    tool_requests = []
+    speak_text = ""
 
-    tool_request = ""
     if tool_match:
         # Extract the Tool Request for processing
         # Tags Found. Strip leading/trailing whitespaces
-        tool_request = tool_match.group(1).strip()
-
+        for tool in tool_match:
+            tool_requests.append(tool.strip())
 
     if speak_match:
         # Extract the UI Chat text
         # Tags Found. Strip leading/trailing whitespaces for a clean UI output.
-        speach_text = speak_match.group(1).strip()
-    else:
+        for speak in speak_match:
+            speak_text += f"\n{speak.strip()}"
+
+    if not speak_text:
         # Fallback in case Dolphin respone is not in the system prompted format.
-        # Pull <think> and <tool>, retrun remaing content
-        fallback_text = re.sub(r"<think>(.*?)</think>", "", raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
-        fallback_text = re.sub(r"<tool>(.*?)</tool>", "", fallback_text, flags=re.DOTALL | re.IGNORECASE).strip()
-        speach_text = fallback_text if fallback_text else "*(System Error: No Visible Response Found. See Terminal)*"
-    
-    return raw_text, speach_text, tool_request
+        speak_text = untagged_text if untagged_text else "*(System Error: No Visible Response Found. See Terminal)*"
+
+    return raw_text, speak_text, tool_requests

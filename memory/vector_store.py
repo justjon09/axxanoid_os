@@ -75,22 +75,16 @@ def query_memory(query_text: str, n_results: int = 2, where_filter: dict = None)
 
 def get_memory_topics():
     """
-    Queries ChromaDB for all stored memories and extracts unique topics 
-    and document IDs so the UI can display what Q remembers.
+    Queries ChromaDB for all stored memories and extracts unique document IDs so the UI can display what agent remembers.
     """
     try:
-        # Fetch all metadata from the collection
-        results = collection.get(include=["metadatas"])
+        # Fetch all
+        results = collection.get()
         
-        if not results or not results["metadatas"]:
+        if not results or not results["ids"]:
             return []
-
-        # Extract unique topics
-        topics = set()
-        for meta in results["metadatas"]:
-            if meta and "topic" in meta:
-                topics.add(meta["topic"])
-                
+        # Extract the unique Document IDs
+        topics = set(results["ids"])               
         return sorted(list(topics))
     except Exception as e:
         print(f"Error fetching memory topics: {e}")

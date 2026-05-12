@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from q_engine.ollama_client import stream_q_response
+from q_engine.ollama_client import stream_agent_response
 
 async def main():
     # We explicitly ask Q to use both tags to see if he obeys the structure
@@ -14,7 +14,7 @@ async def main():
     print(f"\n>>> Sending prompt to Dolphin 3.0: '{prompt}'")
     print("-" * 50)
     
-    async for chunk in stream_q_response(prompt):
+    async for chunk in stream_agent_response(prompt):
         sys.stdout.write(chunk)
         sys.stdout.flush()
         

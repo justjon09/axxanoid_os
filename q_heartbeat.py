@@ -6,7 +6,7 @@ import subprocess
 from sqlalchemy.orm import Session
 from memory.database import SessionLocal
 from memory.models import SystemConfig, CurrentChat
-from q_engine.ollama_client import stream_q_response
+from q_engine.ollama_client import stream_agent_response
 from q_engine.stream_parser import parse_and_route_stream
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -161,12 +161,14 @@ def run_heartbeat():
 
         async def run_subconscious ():
             # Pass the generator to existing parser
-            generator = stream_q_response(heartbeat_prompt, system_context=system_context)
-            raw_text, speach_text, tool_request = await parse_and_route_stream(generator)
-            return raw_text, speach_text, tool_request
+            generator = stream_agent_response(heartbeat_prompt, system_context=system_context)
+
+
+            raw_text, speach_text = await parse_and_route_stream(generator)
+            return raw_text, speach_text
              
         # Execute the stream
-        raw_text, speach_text, tool_request = asyncio.run(run_subconscious())
+        raw_text, speach_text = asyncio.run(run_subconscious())
 
         # Parse q_response to auto-save <speak> text to SQLite
         # If Q output "NOMINAL", we do nothing. If he spoke, we save it to the DB.

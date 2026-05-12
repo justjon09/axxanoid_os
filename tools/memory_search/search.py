@@ -26,6 +26,11 @@ def execute_vector_memory_search(query_string: str, where_filter: dict = None) -
 def execute_sql_memory_search(raw_sql_query: str) -> str:
     """
     Allows agent to execute raw SQL directly against his SQLite database (q_state.db).
+
+    CRITICAL INSTRUCTIONS:
+    - This is a SQLite database.
+    - If you do not know the schema, first execute: SELECT name FROM sqlite_master WHERE type='table';
+    - To check a table's structure, execute: PRAGMA table_info(table_name);
     """
     print(f">>> [TOOL EXECUTING] Running Raw SQL: {raw_sql_query}")
 

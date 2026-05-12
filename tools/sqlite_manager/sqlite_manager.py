@@ -9,6 +9,12 @@ from memory.database import get_db
 def execute_sqlite_query(raw_sql_query: str) -> str:
     """
     Allows Agent to execute raw SQL directly against SQLite database (q_state.db).
+
+    CRITICAL INSTRUCTIONS:
+    - This is a SQLite database, NOT SQL Server or MySQL.
+    - If you do not know the database schema, DO NOT GUESS.
+    - To discover tables, execute: SELECT name FROM q_state.db WHERE type='table';
+    - To discover columns in a table, execute: PRAGMA table_info(table_name);
     """
     print(f">>> [TOOL EXECUTING] Running Raw SQL: {raw_sql_query}")
     

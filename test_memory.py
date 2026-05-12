@@ -1,7 +1,7 @@
 import asyncio
 import sys
 from memory.vector_store import add_to_memory, query_memory
-from q_engine.ollama_client import stream_q_response
+from q_engine.ollama_client import stream_agent_response
 
 async def main():
     print(">>> 1. Injecting facts into memory...\n")
@@ -52,7 +52,7 @@ async def main():
     print("----------------------------------------\n")
 
     print(">>> 3. TESTING Q'S COMPREHENSION...\n")
-    async for chunk in stream_q_response(user_prompt, system_context=retrieved_context):
+    async for chunk in stream_agent_response(user_prompt, system_context=retrieved_context):
         sys.stdout.write(chunk)
         sys.stdout.flush()
 

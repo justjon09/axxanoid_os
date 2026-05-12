@@ -21,22 +21,11 @@ async def parse_and_route_stream(async_generator) -> Tuple[str, str, list[str]]:
     # 2. Parse inbound stream text using Regex
     # This specifically hunts for <speak> content </speak> across multiple lines
     speak_match = re.findall(r'<speak>(.*?)</speak>', raw_text, re.DOTALL | re.IGNORECASE)
-
-    # This specifically hunts for <tool> content </tool> across multiple lines
-    tool_match = re.findall(r'<tool>(.*?)</tool>', raw_text, re.DOTALL | re.IGNORECASE)
     
     untagged_text = re.sub(r"<think>(.*?)</think>", "", raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
-    untagged_text = re.sub(r"<tool>(.*?)</tool>", "", untagged_text, flags=re.DOTALL | re.IGNORECASE).strip()
     untagged_text = re.sub(r"<speak>(.*?)</speak>", "", untagged_text, flags=re.DOTALL | re.IGNORECASE).strip()
-    
-    tool_requests = []
-    speak_text = ""
 
-    if tool_match:
-        # Extract the Tool Request for processing
-        # Tags Found. Strip leading/trailing whitespaces
-        for tool in tool_match:
-            tool_requests.append(tool.strip())
+    speak_text = ""
 
     if speak_match:
         # Extract the UI Chat text
@@ -48,4 +37,4 @@ async def parse_and_route_stream(async_generator) -> Tuple[str, str, list[str]]:
         # Fallback in case Dolphin respone is not in the system prompted format.
         speak_text = untagged_text if untagged_text else "*(System Error: No Visible Response Found. See Terminal)*"
 
-    return raw_text, speak_text, tool_requests
+    return raw_text, speak_text

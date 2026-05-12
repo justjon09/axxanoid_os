@@ -1,9 +1,102 @@
 # Base it on the uncensored Dolphin model
-FROM dolphin3
+FROM hf.co/cognitivecomputations/Dolphin3.0-Llama3.1-8B-GGUF:Q4_0
 
-# Force the M4 Pro to allocate a massive 32k workbench for Q
+
+
+
+
+TEMPLATE """{{- if .Messages }} 
+{{- if or .System .Tools }}<|start_header_id|>system<|end_header_id|>
+{{- if .System }}
+{{ .System }}
+{{- end }}
+{{- if .Tools }}
+You are an autonomous intelligence equipped with tools. If a tool fails, do not repeat the exact same tool call. NEVER simulate or hallucinate a tool's response. 
+{{- end }}<|eot_id|>
+{{- end }}
+{{- range $i, $_ := .Messages }}
+{{- $last := eq (len (slice $.Messages $i)) 1 }}
+{{- if eq .Role "user" }}<|start_header_id|>user<|end_header_id|>
+
+{{- if and $.Tools $last }}
+Given the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.
+
+Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}. Do not use variables. Do not include any conversational text before or after the JSON.
+
+{{ range $.Tools }}
+{{- .Function }}
+{{ end }}
+{{ .Content }}<|eot_id|>
+{{- else }}
+{{ .Content }}<|eot_id|> 
+{{- end }}
+{{ - else if eq .Role "assistant" }}<|start_header_id|>assistant<|end_header_id|>
+
+{{- if .ToolCalls }}
+{{- range .ToolCalls }}
+{"name": "{{ .Function.Name }}", "parameters": {{ .Function.Arguments }}}{{- end }}
+{{- else }}
+{{ .Content }}
+{{- end }}<|eot_id|>
+{{- else if eq .Role "tool" }}<|start_header_id|>ipython<|end_header_id|>
+
+{{ .Content }}<|eot_id|>
+{{- end }}
+{{- end }}
+{{- end }}<|start_header_id|>assistant<|end_header_id|>
+
+
+
+
+{{- range $i, $_ := .Messages }}
+{{- $last := eq (len (slice $.Messages $i)) 1 }}
+{{- if eq .Role "user" }}<|start_header_id|>user<|end_header_id|>
+
+{{ .Content }}<|eot_id|>
+{{- if and $.Tools $last }}<|start_header_id|>assistant<|end_header_id|>
+
+{{- end }}
+{{- else if eq .Role "assistant" }}<|start_header_id|>assistant<|end_header_id|>
+"""
+
+# TEMPERATURE: Controls randomness in output
+# Range: 0.0 to 2.0 (default: 0.8)
+# Lower values = more focused and deterministic
+# Higher values = more creative and varied
+PARAMETER temperature 0.6
+
+# TOP_K: Limits vocabulary to top K most likely tokens
+# Range: 1 to vocabulary size (default: 40)
+# Lower values = more focused on likely words
+# Higher values = allows more diverse vocabulary
+PARAMETER top_k 400
+
+# TOP_P (nucleus sampling): Cumulative probability threshold
+# Range: 0.0 to 1.0 (default: 0.9)
+# Lower values = stricter, more predictable
+# Higher values = allows more variety
+PARAMETER top_p 0.9
+
+# NUM_CTX: Context window size in tokens
+# Determines how much conversation history the model remembers
+# Larger values require more memory but provide better context
+# Force the M4 Pro to allocate a massive 32k workbench
 PARAMETER num_ctx 32768
 
-# We can also lock in his temperature here. 
-# 0.7 makes him creative but highly logical.
-PARAMETER temperature 0.7
+# NUM_PREDICT: Maximum tokens to generate
+# -1 for unlimited, or set a specific limit
+# Useful for controlling response length
+PARAMETER num_predict 2048
+
+# REPEAT_PENALTY: Penalizes repeated tokens
+# Range: 0.0 to 2.0 (default: 1.1)
+# Higher values reduce repetition
+PARAMETER repeat_penalty 1.1
+
+# REPEAT_LAST_N: Tokens to consider for repeat penalty
+# How far back to look for repetitions
+PARAMETER repeat_last_n 64
+
+PARAMETER stop "<|im_start|>"
+
+PARAMETER stop "<|im_end|>"

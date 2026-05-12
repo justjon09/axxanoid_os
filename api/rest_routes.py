@@ -1,15 +1,15 @@
+import sys
+import asyncio
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from q_engine.ollama_client import stream_q_response
-from q_engine.stream_parser import parse_and_route_stream
+from ollama import AsyncClient
 from memory.database import get_db
 from memory.models import SystemConfig, CronState, CurrentChat
 from memory.vector_store import get_memory_topics
 from api.schemas import ChatRequest
-from api.utility import load_core_directives, execute_requested_tool
+from api.utility import load_core_directives, load_toolbox
 
 router = APIRouter()
-
 GLOBAL_SYSTEM_CONTEXT = load_core_directives()
 
 @router.get("/system/status")
@@ -61,7 +61,7 @@ async def fetch_memory_topics():
 @router.post("/chat")
 async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     """
-    The main UI chat endpoint. UI sends a message -> Python receives -> Saves to database -> Sends to dolphin(Q) as prompt -> dolphin(Q) streams response -> Python routes response: Thinking to terminal, Speaking cleaned and sent to UI and datebase.
+    The main UI chat endpoint.
     """
     print(f"\n>>> [UI REQUEST] User: {request.message}")
     print(">>> [Q ENGINE] Generating thought process ...\n")
@@ -76,46 +76,87 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user_msg)
 
-    # 1.5 Fetch Short-Term Memory (20 messages)
-    recent_chats = db.query(CurrentChat).filter(
-        CurrentChat.conversation_id == request.conversation_id
-    ).order_by(CurrentChat.id.desc()).limit(20).all()
+    full_prompt = [
+        {"role": "system", "content": GLOBAL_SYSTEM_CONTEXT},
+        {"role": request.sender, "content":request.message}
+    ]
 
-    chat_history = ""
-    # Reverse to chronological order
-    for chat in reversed(recent_chats):
-        if chat.id != user_msg.id: # Skip the message we just inserted
-            chat_history += f"{chat.sender.upper()}: {chat.message}\n"
+    toolbox = load_toolbox()
+    client = AsyncClient(host="http://localhost:11434")
+    chat = client.chat
 
-    # Compile the prompt with the history
-    full_prompt = f"=== RECENT CHAT HISTORY ===\n{chat_history}\n\nUSER: {request.message}" if chat_history else f"USER: {request.message}"
+    while True:
+        # Start the async AI generator and pass the raw python functions
+        stream = await chat (
+            model="q_daemon", 
+            messages=full_prompt,
+            stream=True,
+            tools=toolbox.values()
+        )
 
-    # Start the AI generator
-    raw_generator = stream_q_response(full_prompt, system_context=GLOBAL_SYSTEM_CONTEXT)
-    # Pass the gernerator through parser - Terminal sees all live
-    raw_text, speech_text, tool_requests = await parse_and_route_stream(raw_generator)
-    # If agent output a <tool> tag, intercept and execute it
-    if tool_requests:
-        for tool_request in tool_requests:
-            tool_result = await execute_requested_tool(tool_request)
-            # Print the result to the terminal
-            print(f"\n>>> [TOOL INJECTION][TOOL REQUEST]{tool_request}...")
-            print(f"\n>>> [TOOL INJECTION] [TOOL RESULT]{tool_result}\n")
-            # Provide agent with tool request results     
-            tool_response_prompt = f"\n\n TOOL REQUEST RESPONSE:\n REQUEST:\n{tool_request}\n\nRESPONSE:\n{tool_result}\n\nPlease proceed based on these results."
-            stream_q_response(tool_response_prompt, system_context=GLOBAL_SYSTEM_CONTEXT)
+        content = ''
+        tool_calls = []
 
+        # Accumulate the partial fields
+        async for chunk in stream:
+            # Handle SDK versioning differences (Dict vs Object)
+            msg_content = chunk['message']['content'] if isinstance(chunk, dict) else chunk.message.content
+            msg_tools = chunk['message'].get('tool_calls') if isinstance(chunk, dict) else chunk.message.tool_calls
+
+            if msg_content:
+                content += msg_content
+                sys.stdout.write(msg_content)
+                sys.stdout.flush()
+
+            if msg_tools:
+                tool_calls.extend(msg_tools)
+                print(msg_tools)
+
+        # Append accumulated fields to the messages to hold state
+        if content or tool_calls:
+            # Depending on SDK, tool_calls may need to be serialized to dicts, but passing them back raw usually works
+            full_prompt.append({'role': 'assistant', 'content': content, 'tool_calls': tool_calls})
+
+        # Break the loop if agent didn't ask for a tool
+        if not tool_calls:
+            break
+        
+        for tool_call in tool_calls:
+            # Extract the raw name and dict arguments
+            func_name = tool_call['function']['name'] if isinstance(tool_call, dict) else tool_call.function.name
+            args = tool_call['function']['arguments'] if isinstance(tool_call, dict) else tool_call.function.arguments
+
+            print(f"\n>>> [TOOL INJECTION][TOOL REQUEST]{func_name}...")
+
+            tool_func = toolbox.get(func_name)
+
+            if tool_func:
+                try:
+                    # **args safely unpacks the dictionary natively into the tool's parameters
+                    # asyncio.to_thread prevents the synchronous DB query from freezing FastAPI
+                    tool_result = await asyncio.to_thread(tool_func, **args)
+                    print(f">>> [TOOL INJECTION] [TOOL RESULT] {str(tool_result)[:150]}...\n")
+                except Exception as e:
+                    print(f">> [TOOL INJECTION] [TOOL EXECUTION ERROR] {str(e)}")
+                    tool_result = f"Execution Error: {str(e)}"
+            else:
+                print(f">> [TOOL INJECTION] [TOOL ERROR] {func_name} not an availble tool")
+                tool_result = "Unknown Tool Error"
+
+            # Inject the python result back into his active context window
+            full_prompt.append({'role': 'tool', 'name': func_name, 'content': str(tool_result)})
+    
     # Save cleaned response to database
-    q_msg = CurrentChat(
+    agent_msg = CurrentChat(
         conversation_id=request.conversation_id,
         sender="q",
-        message=speech_text
+        message=content
     )
-    db.add(q_msg)
+    db.add(agent_msg)
     db.commit()
-    db.refresh(q_msg)
+    db.refresh(agent_msg)
 
     return {
         "status": "success",
-        "q_response": speech_text
+        "q_response": content
     }

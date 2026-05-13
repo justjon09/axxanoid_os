@@ -1,6 +1,55 @@
 # Base it on the uncensored Dolphin model
 FROM hf.co/cognitivecomputations/Dolphin3.0-Llama3.1-8B-GGUF:Q4_0
 
+TEMPLATE """{{- if or .System .Tools }}<|im_start|>system
+{{- if .System }}
+
+{{ .System }}
+{{- end }}
+{{- if .Tools }}
+
+When you receive a tool call response, use the output to format an answer to the original user question.
+
+
+You are an autonomous intelligence with tool calling capabilities.
+{{- end }}<|im_end|>
+{{- end }}
+{{- range $i, $_ := .Messages }}
+{{- $last := eq (len (slice $.Messages $i)) 1 }}
+{{- if eq .Role "user" }}<|im_start|>user
+{{- if and $.Tools $last }}
+
+Given the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.
+
+Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}. Do not use variables.
+
+{{ range $.Tools }}
+{{- .}}
+{{ end }}
+Question: {{ .Content }}<|im_end|>
+{{- else }}
+
+{{ .Content }}<|im_end|> 
+{{- end }}{{ if $last }}<|im_start|>assistant
+
+{{ end }}
+{{- else if eq .Role "assistant" }}<|im_start|>assistant
+{{- if .ToolCalls}}
+{{ range .ToolCalls}}
+{"name": "{{ .Function.Name }}", "parameters": {{ .Function.Arguments }}}{{ end }}
+{{- else }}
+
+{{ .Content }}
+{{- end }}{{ if not $last }}<|im_end|>{{ end }}
+{{- else if eq .Role "tool" }}<|im_start|>ipython
+
+{{ .Content }}<|im_end|>{{ if $last }}<|im_start|>assistant
+
+{{ end }}
+{{- end }}
+{{- end -}}
+"""
+
 # TEMPERATURE: Controls randomness in output
 # Range: 0.0 to 2.0 (default: 0.8)
 # Lower values = more focused and deterministic
@@ -38,7 +87,3 @@ PARAMETER repeat_penalty 1.1
 # REPEAT_LAST_N: Tokens to consider for repeat penalty
 # How far back to look for repetitions
 PARAMETER repeat_last_n 64
-
-PARAMETER stop "<|im_start|>"
-
-PARAMETER stop "<|im_end|>"

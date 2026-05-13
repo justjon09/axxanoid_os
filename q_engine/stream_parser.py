@@ -2,6 +2,14 @@ import sys
 import re
 from typing import Tuple
 
+async def parse_tools_from_message(message: str) -> Tuple[list[str]]:
+    """
+    Extracts tool calls from agent messages.
+    """
+    tool_calls = re.findall(r'```json\n(.*?)\n```', message, re.DOTALL | re.IGNORECASE)
+    return tool_calls
+    
+
 async def parse_and_route_stream(async_generator) -> Tuple[str, str, list[str]]:
     """
     1. Streams the raw matrix directly to the Dev Terminal.

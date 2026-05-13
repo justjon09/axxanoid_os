@@ -84,7 +84,6 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
 
     for chat in reversed(recent_chats):
         if chat.id != user_msg.id: # Skip the message we just inserted
-            chat_history += f"{chat.sender.upper()}: {chat.message}\n"
             mapped_role = "assistant" if chat.sender == "q" else "user"
             full_prompt.append({"role": mapped_role, "content": chat.message})
 
@@ -110,20 +109,17 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
         async for chunk in stream:
             # Handle SDK versioning differences (Dict vs Object)
             msg_content = chunk['message']['content'] if isinstance(chunk, dict) else chunk.message.content
-            msg_tools = chunk['message'].get('tool_calls') if isinstance(chunk, dict) else chunk.message.tool_calls
 
             if msg_content:
                 content += msg_content
                 sys.stdout.write(msg_content)
                 sys.stdout.flush()
 
+        if content:
+            msg_tools = parse_tools_from_message(content)
             if msg_tools:
                 tool_calls.extend(msg_tools)
-                print(msg_tools)
-
-        # Append accumulated fields to the messages to hold state
-        if content or tool_calls:
-            # Depending on SDK, tool_calls may need to be serialized to dicts, but passing them back raw usually works
+                print(f"\n === TOOLs ===\n{tool_calls}")
             full_prompt.append({'role': 'assistant', 'content': content, 'tool_calls': tool_calls})
 
         # Break the loop if agent didn't ask for a tool

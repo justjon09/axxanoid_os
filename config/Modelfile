@@ -1,64 +1,6 @@
 # Base it on the uncensored Dolphin model
 FROM hf.co/cognitivecomputations/Dolphin3.0-Llama3.1-8B-GGUF:Q4_0
 
-
-
-
-
-TEMPLATE """{{- if .Messages }} 
-{{- if or .System .Tools }}<|start_header_id|>system<|end_header_id|>
-{{- if .System }}
-{{ .System }}
-{{- end }}
-{{- if .Tools }}
-You are an autonomous intelligence equipped with tools. If a tool fails, do not repeat the exact same tool call. NEVER simulate or hallucinate a tool's response. 
-{{- end }}<|eot_id|>
-{{- end }}
-{{- range $i, $_ := .Messages }}
-{{- $last := eq (len (slice $.Messages $i)) 1 }}
-{{- if eq .Role "user" }}<|start_header_id|>user<|end_header_id|>
-
-{{- if and $.Tools $last }}
-Given the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.
-
-Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}. Do not use variables. Do not include any conversational text before or after the JSON.
-
-{{ range $.Tools }}
-{{- .Function }}
-{{ end }}
-{{ .Content }}<|eot_id|>
-{{- else }}
-{{ .Content }}<|eot_id|> 
-{{- end }}
-{{ - else if eq .Role "assistant" }}<|start_header_id|>assistant<|end_header_id|>
-
-{{- if .ToolCalls }}
-{{- range .ToolCalls }}
-{"name": "{{ .Function.Name }}", "parameters": {{ .Function.Arguments }}}{{- end }}
-{{- else }}
-{{ .Content }}
-{{- end }}<|eot_id|>
-{{- else if eq .Role "tool" }}<|start_header_id|>ipython<|end_header_id|>
-
-{{ .Content }}<|eot_id|>
-{{- end }}
-{{- end }}
-{{- end }}<|start_header_id|>assistant<|end_header_id|>
-
-
-
-
-{{- range $i, $_ := .Messages }}
-{{- $last := eq (len (slice $.Messages $i)) 1 }}
-{{- if eq .Role "user" }}<|start_header_id|>user<|end_header_id|>
-
-{{ .Content }}<|eot_id|>
-{{- if and $.Tools $last }}<|start_header_id|>assistant<|end_header_id|>
-
-{{- end }}
-{{- else if eq .Role "assistant" }}<|start_header_id|>assistant<|end_header_id|>
-"""
-
 # TEMPERATURE: Controls randomness in output
 # Range: 0.0 to 2.0 (default: 0.8)
 # Lower values = more focused and deterministic

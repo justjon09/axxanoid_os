@@ -76,9 +76,20 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user_msg)
 
+    recent_chats = db.query(CurrentChat).filter(
+        CurrentChat.conversation_id == request.conversation_id
+    ).order_by(CurrentChat.id.desc()).limit(20).all()
+
+    chat_history = ""
+    # Reverse to chronological order
+    for chat in reversed(recent_chats):
+        if chat.id != user_msg.id: # Skip the message we just inserted
+            chat_history += f"{chat.sender.upper()}: {chat.message}\n"
+
     full_prompt = [
         {"role": "system", "content": GLOBAL_SYSTEM_CONTEXT},
-        {"role": request.sender, "content":request.message}
+        {"role": request.sender, "content":request.message},
+        {"role": "system", "content": f"RECENT CHAT HISTORY: {chat_history}"}
     ]
 
     toolbox = load_toolbox()

@@ -66,6 +66,8 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     print(f"\n>>> [UI REQUEST] User: {request.message}")
     print(">>> [Q ENGINE] Generating thought process ...\n")
 
+    full_prompt = [{"role": "system", "content": GLOBAL_SYSTEM_CONTEXT}]
+
     # Save the users message to the database
     user_msg = CurrentChat(
         conversation_id=request.conversation_id,
@@ -80,17 +82,13 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
         CurrentChat.conversation_id == request.conversation_id
     ).order_by(CurrentChat.id.desc()).limit(20).all()
 
-    chat_history = ""
-    # Reverse to chronological order
     for chat in reversed(recent_chats):
         if chat.id != user_msg.id: # Skip the message we just inserted
             chat_history += f"{chat.sender.upper()}: {chat.message}\n"
+            mapped_role = "assistant" if chat.sender == "q" else "user"
+            full_prompt.append({"role": mapped_role, "content": chat.message})
 
-    full_prompt = [
-        {"role": "system", "content": GLOBAL_SYSTEM_CONTEXT},
-        {"role": request.sender, "content":request.message},
-        {"role": "system", "content": f"RECENT CHAT HISTORY: {chat_history}"}
-    ]
+    full_prompt.append({"role": request.sender, "content":request.message}),
 
     toolbox = load_toolbox()
     client = AsyncClient(host="http://localhost:11434")
@@ -160,7 +158,7 @@ async def chat_via_ui(request: ChatRequest, db: Session = Depends(get_db)):
     # Save cleaned response to database
     agent_msg = CurrentChat(
         conversation_id=request.conversation_id,
-        sender="q",
+        sender="assistant",
         message=content
     )
     db.add(agent_msg)
